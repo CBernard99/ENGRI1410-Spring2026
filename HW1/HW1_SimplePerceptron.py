@@ -1,3 +1,7 @@
+# ENGRI 1410, Spring 2026
+# HW 1
+# Carl Bernard
+#
 # Perceptron Visual Demo with Biological Neuron Schematic
 # Run in Jupyter or Google Colab
 #
@@ -201,7 +205,7 @@ def demo(activation="step", dataset="linear", w1=1.0, w2=-1.0, b=0.0,
         dataset_name = r"Linearly separable data ($w \cdot x + b > 0$)"
     else:
         X, y = make_xor_data(seed=seed)
-        dataset_name = "XOR-style data (not linearly separable)"
+        dataset_name = "XOR-style data"
 
     # Figure with two subplots: decision boundary | neuron sketch
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5.8))
