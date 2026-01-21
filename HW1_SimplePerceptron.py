@@ -1,0 +1,188 @@
+# Perceptron Visual Demo with Biological Neuron Schematic
+# Run in Jupyter or Google Colab
+
+# If widgets aren't installed locally, uncomment the next line:
+# !pip install ipywidgets
+
+import numpy as np
+import matplotlib.pyplot as plt
+from ipywidgets import interact, FloatSlider, IntSlider, Dropdown, Checkbox
+
+# -----------------------------
+# 1) Make simple 2D datasets
+# -----------------------------
+def make_linear_data(n=120, seed=0):
+    rng = np.random.default_rng(int(seed))  # ensure int
+    X = rng.normal(0, 1, size=(n, 2))
+    # label = 1 if x1 + x2 > 0 else 0 (linearly separable)
+    y = (X[:, 0] + X[:, 1] > 0).astype(int)
+    return X, y
+
+def make_xor_data(n=120, seed=0):
+    rng = np.random.default_rng(int(seed))  # ensure int
+    X = rng.normal(0, 1, size=(n, 2))
+    # XOR-ish labels: sign(x1) XOR sign(x2)
+    y = ((X[:, 0] > 0) ^ (X[:, 1] > 0)).astype(int)
+    return X, y
+
+# -----------------------------
+# 2) Perceptron forward pass
+# -----------------------------
+def perceptron_forward(X, w, b, activation="step"):
+    z = X @ w + b
+    if activation == "step":
+        return (z > 0).astype(int), z
+    elif activation == "sigmoid":
+        p = 1.0 / (1.0 + np.exp(-z))
+        return (p >= 0.5).astype(int), p
+    elif activation == "relu":
+        r = np.maximum(0, z)
+        return (r > 0).astype(int), r
+    else:
+        raise ValueError("activation must be: 'step', 'sigmoid', or 'relu'")
+
+# -----------------------------
+# 3) Biological neuron sketch
+# -----------------------------
+def draw_bio_neuron(ax, w1, w2, b, activation_name):
+    ax.axis("off")
+    ax.set_title("Biological neuron analogy", fontsize=12, pad=6)
+
+    # Positions
+    x_in1, y_in1 = 0.15, 0.75   # input 1
+    x_in2, y_in2 = 0.15, 0.25   # input 2
+    x_sum,  y_sum  = 0.45, 0.5  # summation node (soma)
+    x_act,  y_act  = 0.70, 0.5  # activation block
+    x_out,  y_out  = 0.90, 0.5  # output arrow end
+
+    # Input circles
+    circ1 = plt.Circle((x_in1, y_in1), 0.035, color="#cccccc", ec="k")
+    circ2 = plt.Circle((x_in2, y_in2), 0.035, color="#cccccc", ec="k")
+    ax.add_patch(circ1); ax.add_patch(circ2)
+    ax.text(x_in1, y_in1+0.08, "x₁", ha="center", fontsize=11)
+    ax.text(x_in2, y_in2+0.08, "x₂", ha="center", fontsize=11)
+
+    # Soma (summation) as circle
+    soma = plt.Circle((x_sum, y_sum), 0.05, color="#e6e6e6", ec="k")
+    ax.add_patch(soma)
+    ax.text(x_sum, y_sum, "Σ", ha="center", va="center", fontsize=12)
+
+    # Activation box
+    ax.add_patch(plt.Rectangle((x_act-0.06, y_act-0.045), 0.12, 0.09,
+                               color="#e6f2ff", ec="k"))
+    ax.text(x_act, y_act, f"activation\n({activation_name})", ha="center", va="center", fontsize=9)
+
+    # Arrows: inputs -> soma
+    ax.annotate("", xy=(x_sum-0.05, y_sum+0.02), xytext=(x_in1+0.04, y_in1),
+                arrowprops=dict(arrowstyle="->", lw=1.5))
+    ax.annotate("", xy=(x_sum-0.05, y_sum-0.02), xytext=(x_in2+0.04, y_in2),
+                arrowprops=dict(arrowstyle="->", lw=1.5))
+
+    # Weights labels
+    ax.text((x_in1+x_sum)/2 - 0.02, (y_in1+y_sum)/2 + 0.02, f"w₁={w1:.2f}", fontsize=9)
+    ax.text((x_in2+x_sum)/2 - 0.02, (y_in2+y_sum)/2 - 0.04, f"w₂={w2:.2f}", fontsize=9)
+
+    # Bias into soma (drawn as a separate arrow)
+    ax.annotate("", xy=(x_sum, y_sum+0.08), xytext=(x_sum, y_sum+0.22),
+                arrowprops=dict(arrowstyle="->", lw=1.5))
+    ax.text(x_sum+0.02, y_sum+0.16, f"bias b={b:.2f}", fontsize=9)
+
+    # Soma -> activation
+    ax.annotate("", xy=(x_act-0.06, y_act), xytext=(x_sum+0.05, y_sum),
+                arrowprops=dict(arrowstyle="->", lw=1.5))
+
+    # Activation -> output
+    ax.annotate("", xy=(x_out, y_out), xytext=(x_act+0.06, y_act),
+                arrowprops=dict(arrowstyle="->", lw=1.5))
+    ax.text((x_act+x_out)/2, y_out+0.05, "output y", fontsize=10, ha="center")
+
+    # Tiny note for process
+    ax.text(0.5, 0.08, "inputs → weighted sum (Σ) → add bias → activation → output",
+            fontsize=9, ha="center")
+
+# -----------------------------
+# 4) Decision boundary plot
+# -----------------------------
+def plot_decision_boundary(ax, X, y, w1, w2, b, activation, dataset_name,
+                           show_weight=True, show_region=True):
+    w = np.array([w1, w2])
+
+    # Predictions
+    yhat, score = perceptron_forward(X, w, b, activation)
+    correct = (yhat == y).sum()
+    total = len(y)
+    incorrect = total - correct
+
+    # Background region (optional)
+    if show_region:
+        xx, yy = np.meshgrid(np.linspace(-3, 3, 301), np.linspace(-3, 3, 301))
+        grid = np.c_[xx.ravel(), yy.ravel()]
+        grid_pred, _ = perceptron_forward(grid, w, b, activation)
+        ax.contourf(xx, yy, grid_pred.reshape(xx.shape),
+                    levels=[-1, 0, 1], alpha=0.15, colors=["#4a90e2", "#e24a4a"])
+
+    # Scatter data points
+    ax.scatter(X[:, 0], X[:, 1], c=y, cmap="bwr", edgecolor='k', s=45)
+
+    # Decision boundary (w·x + b = 0) if w is not ~zero
+    if np.linalg.norm(w) > 1e-6:
+        if abs(w[1]) > 1e-6:
+            xs = np.linspace(-3, 3, 200)
+            ys = -(w[0]/w[1]) * xs - b / w[1]
+            ax.plot(xs, ys, 'k-', lw=2, label='decision boundary')
+        else:
+            # vertical line: w1*x + b = 0 -> x = -b/w1
+            x0 = -b / w[0]
+            ax.plot([x0, x0], [-3, 3], 'k-', lw=2, label='decision boundary')
+
+    # Weight vector arrow (optional)
+    if show_weight and np.linalg.norm(w) > 1e-6:
+        origin = np.array([0.0, 0.0])
+        w_display = (w / np.linalg.norm(w)) * 1.8  # scaled for display
+        ax.arrow(origin[0], origin[1], w_display[0], w_display[1],
+                 head_width=0.12, head_length=0.18, fc='k', ec='k', length_includes_head=True)
+        ax.text(w_display[0]*1.05, w_display[1]*1.05, "w", fontsize=12)
+
+    ax.set_xlim(-3, 3); ax.set_ylim(-3, 3)
+    ax.set_xlabel("x₁"); ax.set_ylabel("x₂")
+    title = (f"{dataset_name}  |  activation: {activation}\n"
+             f"w = [{w1:.2f}, {w2:.2f}],  b = {b:.2f}   |   "
+             f"correct: {correct}/{total}, misclassified: {incorrect}")
+    ax.set_title(title, fontsize=11)
+    ax.grid(alpha=0.25)
+
+# -----------------------------
+# 5) Widget-driven demo
+# -----------------------------
+def demo(activation="step", dataset="linear", w1=1.0, w2=-1.0, b=0.0,
+         show_weight=True, show_region=True, seed=0):
+    # Data
+    if dataset == "linear":
+        X, y = make_linear_data(seed=seed)
+        dataset_name = "Linear-separable data (x₁ + x₂ > 0)"
+    else:
+        X, y = make_xor_data(seed=seed)
+        dataset_name = "XOR-style data (not linearly separable)"
+
+    # Figure with two subplots: decision boundary | neuron sketch
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5.8))
+    plt.subplots_adjust(wspace=0.3)
+
+    plot_decision_boundary(ax1, X, y, w1, w2, b, activation, dataset_name,
+                           show_weight=show_weight, show_region=show_region)
+    draw_bio_neuron(ax2, w1, w2, b, activation)
+
+    plt.show()
+
+# Interactive UI
+interact(
+    demo,
+    activation=Dropdown(options=["step", "sigmoid", "relu"], value="step", description="activation"),
+    dataset=Dropdown(options=["linear", "xor"], value="linear", description="dataset"),
+    w1=FloatSlider(min=-3, max=3, step=0.1, value=1.0, description="w₁"),
+    w2=FloatSlider(min=-3, max=3, step=0.1, value=-1.0, description="w₂"),
+    b=FloatSlider(min=-3, max=3, step=0.1, value=0.0, description="bias b"),
+    show_weight=Checkbox(value=True, description="show weight vector"),
+    show_region=Checkbox(value=True, description="shade regions"),
+    seed=IntSlider(min=0, max=9, step=1, value=0, description="data seed")
+);
