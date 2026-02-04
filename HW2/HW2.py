@@ -1,3 +1,6 @@
+# ENGRI 1410 - Spring 2025
+# Copyright Carl Bernard
+#
 # HW2_Problem4_PhoneOverheating_NNExplorer_2x2.py
 # Run this cell in Google Colab (no need to modify code).
 # If widgets don't appear: Runtime -> Restart runtime, then run again.
