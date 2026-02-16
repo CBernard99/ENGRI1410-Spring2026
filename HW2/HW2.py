@@ -1,4 +1,4 @@
-# ENGRI 1410 - Spring 2025
+# ENGRI 1410 - Spring 2026
 # Copyright Carl Bernard
 #
 # HW2_Problem4_PhoneOverheating_NNExplorer_2x2.py
