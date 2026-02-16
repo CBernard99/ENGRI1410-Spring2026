@@ -1,4 +1,4 @@
-# ENGRI 1410 - Spring 2025
+# ENGRI 1410 - Spring 2026
 # Copyright Carl Bernard
 #
 # HW3.py
