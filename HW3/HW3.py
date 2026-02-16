@@ -1,38 +1,9 @@
-# ================================================================
-# INTERACTIVE GRADIENT DESCENT LAB (Colab single-cell, clean layout)
+# ENGRI 1410 - Spring 2025
+# Copyright Carl Bernard
 #
-# Layout (as requested):
-#   1) 1D controls
-#   2) 1D graph (with legend)
-#   3) horizontal line
-#   4) 2D controls
-#   5) 2D graphs under those controls (Plotly: 3D + contour side-by-side)
-#
-# Visual/legend requirements implemented:
-# - 1D legend:
-#     Yellow star = Starting value
-#     Orange dots/line = Iterations
-# - 2D: remove Plotly auto-legend (misleading)
-# - Add custom legend text under each subplot title via annotations:
-#     3D:
-#       Green diamond: Start value
-#       Red line: Gradient descent path
-#     Contour:
-#       Green diamond: Starting point
-#       Red line: GD path
-#
-# Additional visual improvements:
-# - 3D surface uses a neutral colorscale + mesh grid lines (easy to read)
-# - Contour uses lines-only, neutral colors, thicker red GD path for visibility
-# - Slightly higher opacity and calmer lighting on the 3D surface
-#
-# Other:
-# - Per-slider controls: ▲ ▼ reset
-#   * w0, eta, u0, v0 arrow step = 0.01
-#   * steps arrow step = 1
-# - GLOBAL RESET button appears above BOTH sections
-# - 2D domain set to [-1.2, 1.2] for both u and v
-# ================================================================
+# HW3.py
+# Run this cell in Google Colab (no need to modify code).
+# If widgets don't appear: Runtime -> Restart runtime, then run again.
 
 try:
     from google.colab import output
