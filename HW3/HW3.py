@@ -42,32 +42,64 @@ defaults = {
 
 def loss_and_grad(w, loss_name):
 
+    # ------------------------------------------------
+    # HARD SAFETY LIMIT (prevents overflow)
+    # ------------------------------------------------
+    if abs(w) > 1e3 or not np.isfinite(w):
+        return np.inf, 0.0
+
+    # ------------------------------------------------
     if loss_name == "Quadratic: (w-3)^2":
-        return (w-3)**2, 2*(w-3)
 
+        C = (w-3)**2
+        dC = 2*(w-3)
+        return C, dC
+
+    # ------------------------------------------------
     if loss_name == "Nonconvex: (w^2-1)^2":
-        return (w*w - 1)**2, 4*w*(w*w - 1)
 
+        # compute safely (no giant powers)
+        w2 = w*w
+        C = (w2 - 1)*(w2 - 1)
+        dC = 4*w*(w2 - 1)
+        return C, dC
+
+    # ------------------------------------------------
     if loss_name == "Flat near 0: w^4":
-        return w**4, 4*w**3
 
-    raise ValueError("Unknown loss")
-
+        w2 = w*w
+        C = w2*w2
+        dC = 4*w*w2
+        return C, dC
 
 def run_gd_1d(w0, eta, steps, loss_name):
+
     ws = [w0]
     Cs = []
     w = w0
 
     for _ in range(steps):
+
+        # ---------- safety check ----------
+        if abs(w) > 1e3 or not np.isfinite(w):
+            break
+
         C, dC = loss_and_grad(w, loss_name)
+
+        if not np.isfinite(C):
+            break
+
         Cs.append(C)
+
         w = w - eta*dC
         ws.append(w)
 
-    Cs.append(loss_and_grad(w, loss_name)[0])
+    # final safe value
+    C,_ = loss_and_grad(w, loss_name)
+    Cs.append(C)
 
     return np.array(ws), np.array(Cs)
+
 
 # ================================================================
 # LOSS FUNCTION (2D saddle-like example)
@@ -114,6 +146,11 @@ def update_plot_1d(*args):
 
         W = np.linspace(-4,6,800)
         Cvals = np.array([loss_and_grad(w, loss_dd.value)[0] for w in W])
+
+        # ---- visual clipping for readability ----
+        ymax = np.percentile(Cvals[np.isfinite(Cvals)], 95)
+        Cvals_plot = np.clip(Cvals, 0, ymax)
+
 
         ws, Cs = run_gd_1d(
             w0_slider.value,
