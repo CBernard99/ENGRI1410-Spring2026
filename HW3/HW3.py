@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 
 import ipywidgets as widgets
 from ipywidgets import VBox, HBox
-from IPython.display import display, clear_output
+from IPython.display import display
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -28,6 +28,7 @@ pio.renderers.default = "colab"
 # ================================================================
 
 defaults = {
+    "loss": "Quadratic: (w-3)^2",
     "w0": 4.00,
     "eta1": 0.20,
     "steps1": 12,
@@ -174,264 +175,277 @@ loss_dd = widgets.Dropdown(
         "Nonconvex: (w^2-1)^2",
         "Flat near 0: w^4"
     ],
+    value=defaults["loss"],
     description="loss"
 )
 
 # 1D controls
-w0_box, w0_slider           = make_float_control("w0",  -3,  5,  slider_step=0.1,  button_step=0.01, default=defaults["w0"])
-eta1_box, eta1_slider       = make_float_control("eta",  0,  2,  slider_step=0.01, button_step=0.01, default=defaults["eta1"])
-steps1_box, steps1_slider   = make_int_control("steps",  1, 30, default=defaults["steps1"])
+w0_box, w0_slider         = make_float_control("w0",  -3,  5,  slider_step=0.1,  button_step=0.01, default=defaults["w0"])
+eta1_box, eta1_slider     = make_float_control("eta",  0,  2,  slider_step=0.01, button_step=0.01, default=defaults["eta1"])
+steps1_box, steps1_slider = make_int_control("steps",  1, 30, default=defaults["steps1"])
 
 # 2D controls
-u0_box, u0_slider           = make_float_control("u0",  UV_MIN, UV_MAX, slider_step=0.01, button_step=0.01, default=defaults["u0"])
-v0_box, v0_slider           = make_float_control("v0",  UV_MIN, UV_MAX, slider_step=0.01, button_step=0.01, default=defaults["v0"])
-eta2_box, eta2_slider       = make_float_control("eta",  0.0,  1.5,    slider_step=0.01, button_step=0.01, default=defaults["eta2"])
-steps2_box, steps2_slider   = make_int_control("steps",  1,  40, default=defaults["steps2"])
+u0_box, u0_slider         = make_float_control("u0",  UV_MIN, UV_MAX, slider_step=0.01, button_step=0.01, default=defaults["u0"])
+v0_box, v0_slider         = make_float_control("v0",  UV_MIN, UV_MAX, slider_step=0.01, button_step=0.01, default=defaults["v0"])
+eta2_box, eta2_slider     = make_float_control("eta",  0.0,  1.5,    slider_step=0.01, button_step=0.01, default=defaults["eta2"])
+steps2_box, steps2_slider = make_int_control("steps",  1, 40, default=defaults["steps2"])
 
-# GLOBAL RESET buttons
-global_reset_1 = widgets.Button(description="GLOBAL RESET", button_style="danger")
-global_reset_2 = widgets.Button(description="GLOBAL RESET", button_style="danger")
+# Section-only resets
+reset_1d_btn = widgets.Button(description="1D GLOBAL RESET", button_style="danger")
+reset_2d_btn = widgets.Button(description="2D GLOBAL RESET", button_style="danger")
 
-def do_global_reset(_):
+# Output areas (each updates independently)
+out_1d = widgets.Output()
+out_2d = widgets.Output()
+
+# ================================================================
+# DRAW FUNCTIONS (independent)
+# ================================================================
+
+def draw_1d():
+    with out_1d:
+        out_1d.clear_output(wait=True)
+
+        loss = loss_dd.value
+
+        if loss == "Quadratic: (w-3)^2":
+            wmin, wmax = -3, 9
+            y_max = 60
+        elif loss == "Nonconvex: (w^2-1)^2":
+            wmin, wmax = -2.0, 2.0
+            y_max = 10
+        else:  # w^4
+            wmin, wmax = -2.0, 2.0
+            y_max = 10
+
+        W = np.linspace(wmin, wmax, 800)
+        Cvals = np.array([loss_and_grad(w, loss)[0] for w in W])
+
+        ws, Cs = run_gd_1d(w0_slider.value, eta1_slider.value, steps1_slider.value, loss)
+
+        Cvals_plot = np.clip(Cvals, -2, y_max)
+        Cs_plot    = np.clip(Cs,    -2, y_max)
+
+        fig, ax = plt.subplots(figsize=(7, 4))
+        ax.plot(W, Cvals_plot, label="Loss function")
+        ax.plot(ws, Cs_plot, "o-", color="orange", label="Iterations")
+        ax.plot(ws[0], Cs_plot[0], "*", markersize=15, color="gold", label="Starting value")
+
+        if len(ws) < steps1_slider.value + 1:
+            ax.text(0.02, 0.95, "DIVERGED (η too large)", transform=ax.transAxes,
+                    color="red", fontsize=12, va="top")
+
+        ax.set_xlim([wmin, wmax])
+        ax.set_ylim([-2, y_max])
+        ax.set_title(f"1D Gradient Descent: {loss}")
+        ax.set_xlabel("w")
+        ax.set_ylabel("C(w)")
+        ax.grid(True)
+        ax.legend(loc="upper right")
+        plt.show()
+
+def draw_2d():
+    with out_2d:
+        out_2d.clear_output(wait=True)
+
+        U = np.linspace(UV_MIN, UV_MAX, 170)
+        V = np.linspace(UV_MIN, UV_MAX, 170)
+        UU, VV = np.meshgrid(U, V)
+        CC = saddle_C(UU, VV)
+
+        us, vs = run_gd_2d(u0_slider.value, v0_slider.value, eta2_slider.value, steps2_slider.value)
+        zs = saddle_C(us, vs)
+
+        diverged2 = (len(us) < steps2_slider.value + 1)
+        u_start, v_start, z_start = us[0], vs[0], zs[0]
+
+        fig2 = make_subplots(
+            rows=1, cols=2,
+            specs=[[{"type": "surface"}, {"type": "xy"}]],
+            column_widths=[0.55, 0.45],
+            subplot_titles=("3D Loss Landscape (drag to rotate)", "Contour + GD Path")
+        )
+
+        # 3D surface (Greys + mesh)
+        fig2.add_trace(
+            go.Surface(
+                x=UU, y=VV, z=CC,
+                showscale=False,
+                opacity=0.95,
+                colorscale="Greys",
+                showlegend=False,
+                contours={
+                    "x": {"show": True, "color": "black", "width": 1},
+                    "y": {"show": True, "color": "black", "width": 1},
+                },
+                lighting=dict(ambient=0.8, diffuse=0.6)
+            ),
+            row=1, col=1
+        )
+
+        # 3D GD path (red, thicker)
+        fig2.add_trace(
+            go.Scatter3d(
+                x=us, y=vs, z=zs,
+                mode="lines+markers",
+                marker=dict(size=3, color="red"),
+                line=dict(width=7, color="red"),
+                showlegend=False
+            ),
+            row=1, col=1
+        )
+
+        # 3D start (green diamond)
+        fig2.add_trace(
+            go.Scatter3d(
+                x=[u_start], y=[v_start], z=[z_start],
+                mode="markers",
+                marker=dict(size=10, symbol="diamond", color="green"),
+                showlegend=False
+            ),
+            row=1, col=1
+        )
+
+        # Contour (lines only, Greys)
+        fig2.add_trace(
+            go.Contour(
+                x=U, y=V, z=CC,
+                showscale=False,
+                colorscale="Greys",
+                contours=dict(showlabels=False, coloring="lines"),
+                line=dict(width=2),
+                showlegend=False
+            ),
+            row=1, col=2
+        )
+
+        # Contour GD path (red, thicker)
+        fig2.add_trace(
+            go.Scatter(
+                x=us, y=vs,
+                mode="lines+markers",
+                line=dict(color="red", width=4),
+                marker=dict(color="red", size=7),
+                showlegend=False
+            ),
+            row=1, col=2
+        )
+
+        # Contour start (green diamond)
+        fig2.add_trace(
+            go.Scatter(
+                x=[u_start], y=[v_start],
+                mode="markers",
+                marker=dict(size=14, symbol="diamond", color="green"),
+                showlegend=False
+            ),
+            row=1, col=2
+        )
+
+        fig2.update_layout(
+            height=580,
+            title="2D Gradient Descent on  C(u,v)=u^2 + v^4 - v^2",
+            margin=dict(l=10, r=10, t=120, b=10),
+            showlegend=False
+        )
+
+        fig2.update_scenes(
+            xaxis_title="u",
+            yaxis_title="v",
+            zaxis_title="C(u,v)",
+            camera=dict(eye=dict(x=1.35, y=1.35, z=0.9))
+        )
+        fig2.update_xaxes(title_text="u", row=1, col=2)
+        fig2.update_yaxes(title_text="v", row=1, col=2)
+
+        # Custom legends as annotations
+        fig2.add_annotation(
+            text="<b>3D Legend</b><br>"
+                 "<span style='color:green'>◆</span> Green diamond: Start value<br>"
+                 "<span style='color:red'>━</span> Red line: Gradient descent path",
+            x=0.18, y=1.02,
+            xref="paper", yref="paper",
+            showarrow=False,
+            align="left",
+            font=dict(size=12)
+        )
+        fig2.add_annotation(
+            text="<b>Contour Legend</b><br>"
+                 "<span style='color:green'>◆</span> Green diamond: Starting point<br>"
+                 "<span style='color:red'>━</span> Red line: GD path",
+            x=0.78, y=1.02,
+            xref="paper", yref="paper",
+            showarrow=False,
+            align="left",
+            font=dict(size=12)
+        )
+
+        # Divergence warning BELOW the title in RED
+        if diverged2:
+            fig2.add_annotation(
+                text="<b>DIVERGED (η too large)</b>",
+                x=0.50, y=1.09,
+                xref="paper", yref="paper",
+                showarrow=False,
+                font=dict(size=16, color="red"),
+                align="center"
+            )
+
+        fig2.show()
+
+# ================================================================
+# RESET BUTTON HANDLERS (section-only)
+# ================================================================
+
+def do_reset_1d(_):
+    loss_dd.value = defaults["loss"]
     w0_slider.value = defaults["w0"]
     eta1_slider.value = defaults["eta1"]
     steps1_slider.value = defaults["steps1"]
+
+def do_reset_2d(_):
     u0_slider.value = defaults["u0"]
     v0_slider.value = defaults["v0"]
     eta2_slider.value = defaults["eta2"]
     steps2_slider.value = defaults["steps2"]
 
-global_reset_1.on_click(do_global_reset)
-global_reset_2.on_click(do_global_reset)
+reset_1d_btn.on_click(do_reset_1d)
+reset_2d_btn.on_click(do_reset_2d)
 
 # ================================================================
-# RENDER FUNCTION (exact layout order requested)
+# OBSERVERS (update only the relevant section)
 # ================================================================
 
-def render(*args):
-    clear_output(wait=True)
+for s in [loss_dd, w0_slider, eta1_slider, steps1_slider]:
+    s.observe(lambda change: draw_1d(), names="value")
 
-    # -------------------------
-    # 1D controls
-    # -------------------------
-    display(VBox([
-        widgets.HTML("<h3>1D Gradient Descent</h3>"),
-        global_reset_1,
-        loss_dd,
-        w0_box,
-        eta1_box,
-        steps1_box
-    ]))
-
-    # -------------------------
-    # 1D plot
-    # -------------------------
-    loss = loss_dd.value
-    if loss == "Quadratic: (w-3)^2":
-        wmin, wmax = -3, 9
-        y_max = 60
-    elif loss == "Nonconvex: (w^2-1)^2":
-        wmin, wmax = -2.0, 2.0
-        y_max = 10
-    else:  # w^4
-        wmin, wmax = -2.0, 2.0
-        y_max = 10
-
-    W = np.linspace(wmin, wmax, 800)
-    Cvals = np.array([loss_and_grad(w, loss)[0] for w in W])
-
-    ws, Cs = run_gd_1d(w0_slider.value, eta1_slider.value, steps1_slider.value, loss)
-
-    # clip for display
-    Cvals_plot = np.clip(Cvals, -2, y_max)
-    Cs_plot    = np.clip(Cs,    -2, y_max)
-
-    fig1, ax1 = plt.subplots(figsize=(7, 4))
-    ax1.plot(W, Cvals_plot, label="Loss function")
-    ax1.plot(ws, Cs_plot, "o-", color="orange", label="Iterations")
-    ax1.plot(ws[0], Cs_plot[0], "*", markersize=15, color="gold", label="Starting value")
-
-    if len(ws) < steps1_slider.value + 1:
-        ax1.text(0.02, 0.95, "DIVERGED (η too large)", transform=ax1.transAxes,
-                 color="red", fontsize=12, va="top")
-
-    ax1.set_xlim([wmin, wmax])
-    ax1.set_ylim([-2, y_max])
-    ax1.set_title(f"1D Gradient Descent: {loss}")
-    ax1.set_xlabel("w")
-    ax1.set_ylabel("C(w)")
-    ax1.grid(True)
-    ax1.legend(loc="upper right")
-    plt.show()
-
-    # -------------------------
-    # Divider
-    # -------------------------
-    display(widgets.HTML("<hr>"))
-
-    # -------------------------
-    # 2D controls
-    # -------------------------
-    display(VBox([
-        widgets.HTML("<h3>2D Gradient Descent</h3>"),
-        global_reset_2,
-        u0_box,
-        v0_box,
-        eta2_box,
-        steps2_box
-    ]))
-
-    # -------------------------
-    # 2D plots (Plotly)
-    # -------------------------
-    U = np.linspace(UV_MIN, UV_MAX, 170)
-    V = np.linspace(UV_MIN, UV_MAX, 170)
-    UU, VV = np.meshgrid(U, V)
-    CC = saddle_C(UU, VV)
-
-    us, vs = run_gd_2d(u0_slider.value, v0_slider.value, eta2_slider.value, steps2_slider.value)
-    zs = saddle_C(us, vs)
-
-    diverged2 = (len(us) < steps2_slider.value + 1)
-    u_start, v_start, z_start = us[0], vs[0], zs[0]
-
-    fig2 = make_subplots(
-        rows=1, cols=2,
-        specs=[[{"type": "surface"}, {"type": "xy"}]],
-        column_widths=[0.55, 0.45],
-        subplot_titles=("3D Loss Landscape (drag to rotate)", "Contour + GD Path")
-    )
-
-    # --- 3D surface with mesh ---
-    fig2.add_trace(
-        go.Surface(
-            x=UU, y=VV, z=CC,
-            showscale=False,
-            opacity=0.95,
-            colorscale="Greys",
-            showlegend=False,
-            contours={
-                "x": {"show": True, "color": "black", "width": 1},
-                "y": {"show": True, "color": "black", "width": 1}
-            },
-            lighting=dict(ambient=0.8, diffuse=0.6)
-        ),
-        row=1, col=1
-    )
-
-    # --- 3D GD path: red, thicker line for visibility ---
-    fig2.add_trace(
-        go.Scatter3d(
-            x=us, y=vs, z=zs,
-            mode="lines+markers",
-            marker=dict(size=3, color="red"),
-            line=dict(width=7, color="red"),
-            showlegend=False
-        ),
-        row=1, col=1
-    )
-
-    # --- 3D start marker: green diamond ---
-    fig2.add_trace(
-        go.Scatter3d(
-            x=[u_start], y=[v_start], z=[z_start],
-            mode="markers",
-            marker=dict(size=10, symbol="diamond", color="green"),
-            showlegend=False
-        ),
-        row=1, col=1
-    )
-
-    # --- contour: lines only, neutral ---
-    fig2.add_trace(
-        go.Contour(
-            x=U, y=V, z=CC,
-            showscale=False,
-            colorscale="Greys",
-            contours=dict(showlabels=False, coloring="lines"),
-            line=dict(width=2),
-            showlegend=False
-        ),
-        row=1, col=2
-    )
-
-    # --- contour GD path: red, slightly thicker (small improvement) ---
-    fig2.add_trace(
-        go.Scatter(
-            x=us, y=vs,
-            mode="lines+markers",
-            line=dict(color="red", width=4),
-            marker=dict(color="red", size=7),
-            showlegend=False
-        ),
-        row=1, col=2
-    )
-
-    # --- contour start marker: green diamond ---
-    fig2.add_trace(
-        go.Scatter(
-            x=[u_start], y=[v_start],
-            mode="markers",
-            marker=dict(size=14, symbol="diamond", color="green"),
-            showlegend=False
-        ),
-        row=1, col=2
-    )
-
-    title = "2D Gradient Descent on  C(u,v)=u^2 + v^4 - v^2"
-    if diverged2:
-        title += "  —  DIVERGED (η too large)"
-
-    fig2.update_layout(
-        height=580,
-        title=title,
-        margin=dict(l=10, r=10, t=90, b=10),
-        showlegend=False
-    )
-
-    fig2.update_scenes(
-        xaxis_title="u",
-        yaxis_title="v",
-        zaxis_title="C(u,v)",
-        camera=dict(eye=dict(x=1.35, y=1.35, z=0.9))
-    )
-    fig2.update_xaxes(title_text="u", row=1, col=2)
-    fig2.update_yaxes(title_text="v", row=1, col=2)
-
-    # --- custom legends as annotations ---
-    fig2.add_annotation(
-        text="<b>3D Legend</b><br>"
-             "<span style='color:green'>◆</span>: Start value<br>"
-             "<span style='color:red'>━</span>: Gradient descent path",
-        x=0.18, y=1.02,
-        xref="paper", yref="paper",
-        showarrow=False,
-        align="left",
-        font=dict(size=12)
-    )
-
-    fig2.add_annotation(
-        text="<b>Contour Legend</b><br>"
-             "<span style='color:green'>◆</span>: Starting point<br>"
-             "<span style='color:red'>━</span>: GD path",
-        x=0.78, y=1.02,
-        xref="paper", yref="paper",
-        showarrow=False,
-        align="left",
-        font=dict(size=12)
-    )
-
-    fig2.show()
+for s in [u0_slider, v0_slider, eta2_slider, steps2_slider]:
+    s.observe(lambda change: draw_2d(), names="value")
 
 # ================================================================
-# OBSERVERS
+# DISPLAY UI ONCE
 # ================================================================
 
-for s in [
-    loss_dd, w0_slider, eta1_slider, steps1_slider,
-    u0_slider, v0_slider, eta2_slider, steps2_slider
-]:
-    s.observe(render, names="value")
+display(VBox([
+    widgets.HTML("<h3>1D Gradient Descent</h3>"),
+    reset_1d_btn,
+    loss_dd,
+    w0_box,
+    eta1_box,
+    steps1_box,
+    out_1d,
 
-# initial draw
-render()
+    widgets.HTML("<hr>"),
+
+    widgets.HTML("<h3>2D Gradient Descent</h3>"),
+    reset_2d_btn,
+    u0_box,
+    v0_box,
+    eta2_box,
+    steps2_box,
+    out_2d
+]))
+
+# Initial draw (one-time)
+draw_1d()
+draw_2d()
