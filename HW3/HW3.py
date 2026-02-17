@@ -1,9 +1,29 @@
-# ENGRI 1410 - Spring 2026
-# Copyright Carl Bernard
+# ================================================================
+# INTERACTIVE GRADIENT DESCENT LAB (Colab single-cell, non-jumpy updates)
 #
-# HW3.py
-# Run this cell in Google Colab (no need to modify code).
-# If widgets don't appear: Runtime -> Restart runtime, then run again.
+# Layout:
+#   1D controls
+#   1D plot (updates ONLY when 1D controls change)
+#   ----------------------------------------------
+#   2D controls
+#   2D plot (updates ONLY when 2D controls change)
+#
+# Visual requirements:
+# - 1D: legend (gold star = starting value, orange dots/line = iterations)
+# - 2D: Plotly with side-by-side 3D surface + contour
+#       * neutral Greys colorscale (no deep purple)
+#       * mesh lines on the 3D surface
+#       * start marker: green diamond (both 3D and contour)
+#       * GD path: red (both 3D and contour), thicker on contour
+#       * remove Plotly auto-legend
+#       * add custom "legend text" under subplot titles
+#       * if diverged: show RED "DIVERGED (η too large)" BELOW the title
+# - 2D domain: u,v in [-1.2, 1.2]
+#
+# Controls:
+# - Per slider: ▲ ▼ reset
+# - Section-only reset buttons: "1D GLOBAL RESET" and "2D GLOBAL RESET"
+# ================================================================
 
 try:
     from google.colab import output
